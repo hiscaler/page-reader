@@ -150,16 +150,23 @@ func findBySelector(doc *goquery.Document, selector string) *goquery.Selection {
 	return s
 }
 
-func (pr PageReader) Text(selector string) (value string) {
-	if s := findBySelector(pr.Doc, selector); s != nil {
-		value = s.Text()
+func (pr PageReader) Text(selector string, selectors ...string) (value string) {
+	selectorValues := append([]string{selector}, selectors...)
+	for _, selector := range selectorValues {
+		if s := findBySelector(pr.Doc, selector); s != nil {
+			value = s.Text()
+			if value != "" {
+				value = strings.TrimSpace(value)
+			}
+		}
+		if pr.Debug {
+			pr.Logger.Printf("选择器 %s 文本查询结果：%s", selector, value)
+		}
 		if value != "" {
-			value = strings.TrimSpace(value)
+			break
 		}
 	}
-	if pr.Debug {
-		pr.Logger.Printf("选择器 %s 文本查询结果：%s", selector, value)
-	}
+
 	return
 }
 

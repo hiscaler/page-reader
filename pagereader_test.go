@@ -20,9 +20,15 @@ func TestPageReader_PageSource(t *testing.T) {
 	if err != nil {
 		t.Errorf("error: %s", err.Error())
 	} else {
+		brandUrl, _ := pageReader.Attr("#bylineInfo", "href")
 		fmt.Println(fmt.Sprintf(`
 Title: %s
 Product Name: %s
-`, pageReader.Title, pageReader.Text("#productTitle")))
+Brand URL: %s
+`,
+			pageReader.Title,
+			pageReader.Text("#a", "#b", "#productTitle"),
+			brandUrl,
+		))
 	}
 }

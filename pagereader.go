@@ -45,15 +45,6 @@ func (pr *PageReader) SetMaxTryTimes(times int) *PageReader {
 	return pr
 }
 
-func (pr *PageReader) SetUrl(url string) *PageReader {
-	pr.URL = url
-	return pr
-}
-
-func (pr PageReader) HtmlSource() string {
-	return pr.htmlSource
-}
-
 func (pr PageReader) Headers() network.Headers {
 	headers := network.Headers{
 		"accept-encoding":           "gzip, deflate, br",
@@ -70,7 +61,8 @@ func (pr *PageReader) Reset() *PageReader {
 	return pr
 }
 
-func (pr *PageReader) PageSource(timeout int) (htmlSource string, err error) {
+func (pr *PageReader) Open(url string, timeout int) (htmlSource string, err error) {
+	pr.URL = url
 	pr.Logger.Printf("Time %d：%s", pr.RetryTimes, pr.URL)
 	if timeout <= 0 || timeout > pr.Config.Timeout {
 		timeout = pr.Config.Timeout
@@ -111,7 +103,7 @@ func (pr *PageReader) PageSource(timeout int) (htmlSource string, err error) {
 			timeout += 10
 			pr.Config.RetryTimes += 1
 			if timeout <= pr.Config.MaxTimeout && pr.Config.RetryTimes <= pr.Config.MaxRetryTimes {
-				pr.PageSource(timeout)
+				pr.Open(url, timeout)
 			}
 		}
 	} else {
@@ -130,6 +122,10 @@ func (pr *PageReader) PageSource(timeout int) (htmlSource string, err error) {
 	}
 
 	return
+}
+
+func (pr PageReader) HtmlSource() string {
+	return pr.htmlSource
 }
 
 func (pr PageReader) Contains(s string) bool {

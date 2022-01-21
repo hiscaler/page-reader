@@ -16,8 +16,7 @@ func TestPageReader_PageSource(t *testing.T) {
 		chromedp.Flag("headless", false),
 		chromedp.Flag("blink-settings", "imagesEnabled=false"),
 	}
-	pageReader.SetUrl("https://www.amazon.com/dp/B092M62439")
-	_, err := pageReader.PageSource(20)
+	_, err := pageReader.Open("https://www.amazon.com/dp/B092M62439", 20)
 	if err != nil {
 		t.Errorf("error: %s", err.Error())
 	} else {

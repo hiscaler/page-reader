@@ -12,10 +12,12 @@ import (
 )
 
 type PageReader struct {
+	Debug bool
 	Config
 	Logger     *log.Logger
 	ChromeDP   ChromeDP
 	URL        string
+	Title      string
 	htmlSource string
 	Doc        *goquery.Document
 }
@@ -61,25 +63,35 @@ func (pr PageReader) Headers() network.Headers {
 	return headers
 }
 
-func (pr PageReader) PageSource(timeout int) (htmlSource string, err error) {
+func (pr *PageReader) Reset() *PageReader {
+	pr.htmlSource = ""
+	pr.Title = ""
+	pr.Doc = nil
+	return pr
+}
+
+func (pr *PageReader) PageSource(timeout int) (htmlSource string, err error) {
 	pr.Logger.Printf("Time %d：%s", pr.RetryTimes, pr.URL)
 	if timeout <= 0 || timeout > pr.Config.Timeout {
 		timeout = pr.Config.Timeout
 	}
-	pr.ChromeDP.Start(timeout, *pr.Logger)
+	pr.ChromeDP.Start(pr.Config.Timeout, *pr.Logger)
 	defer func() {
 		pr.ChromeDP.Cancel()
 	}()
 	ctx := pr.ChromeDP.Context.Value
+	var title string
 	err = chromedp.Run(ctx, pr.ChromeDP.RunWithTimeOut(&ctx, timeout, chromedp.Tasks{
 		network.Enable(),
 		network.SetExtraHTTPHeaders(pr.Headers()),
 		chromedp.Navigate(pr.URL),
+		chromedp.Title(&title),
 		chromedp.ActionFunc(func(ctx context.Context) error {
 			node, err := dom.GetDocument().Do(ctx)
 			if err != nil {
 				return err
 			}
+
 			htmlSource, err = dom.GetOuterHTML().WithNodeID(node.NodeID).Do(ctx)
 			if err != nil {
 				return err
@@ -88,18 +100,31 @@ func (pr PageReader) PageSource(timeout int) (htmlSource string, err error) {
 				htmlSource = strings.TrimSpace(htmlSource)
 			}
 			pr.htmlSource = htmlSource
-			if doc, e := goquery.NewDocumentFromReader(strings.NewReader(htmlSource)); e == nil {
-				pr.Doc = doc
-			}
 			return err
 		}),
 	}))
+
 	if err != nil {
+		pr.Reset()
+		pr.Logger.Printf("Error: %s", err.Error())
 		if errors.Is(err, context.DeadlineExceeded) {
 			timeout += 10
 			pr.Config.RetryTimes += 1
 			if timeout <= pr.Config.MaxTimeout && pr.Config.RetryTimes <= pr.Config.MaxRetryTimes {
 				pr.PageSource(timeout)
+			}
+		}
+	} else {
+		if title != "" {
+			title = strings.TrimSpace(title)
+		}
+		pr.Title = title
+		pr.Doc = nil
+		if pr.htmlSource != "" {
+			if doc, e := goquery.NewDocumentFromReader(strings.NewReader(htmlSource)); e == nil {
+				pr.Doc = doc
+			} else {
+				pr.Logger.Printf("goQuery create document Error: %s", e.Error())
 			}
 		}
 	}
@@ -124,10 +149,28 @@ func findBySelector(doc *goquery.Document, selector string) *goquery.Selection {
 	return s
 }
 
-func (pr PageReader) Text(selector string) string {
-	return findBySelector(pr.Doc, selector).Text()
+func (pr PageReader) Text(selector string) (value string) {
+	if s := findBySelector(pr.Doc, selector); s != nil {
+		value = s.Text()
+		if value != "" {
+			value = strings.TrimSpace(value)
+		}
+	}
+	if pr.Debug {
+		pr.Logger.Printf("选择器 %s 文本查询结果：%s", selector, value)
+	}
+	return
 }
 
-func (pr PageReader) Attr(selector, attrName string) (string, bool) {
-	return findBySelector(pr.Doc, selector).Attr(attrName)
+func (pr PageReader) Attr(selector, attrName string) (value string, exists bool) {
+	if s := findBySelector(pr.Doc, selector); s != nil {
+		value, exists = s.Attr(attrName)
+		if exists && value != "" {
+			value = strings.TrimSpace(value)
+		}
+	}
+	if pr.Debug {
+		pr.Logger.Printf("选择器 %s 属性 %s 查询结果为：%s，属性 %s %v", selector, attrName, value, attrName, exists)
+	}
+	return
 }

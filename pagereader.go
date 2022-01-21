@@ -61,7 +61,7 @@ func (pr *PageReader) Reset() *PageReader {
 	return pr
 }
 
-func (pr *PageReader) Open(url string, timeout int) (htmlSource string, err error) {
+func (pr *PageReader) Open(url string, timeout int, extraTasks ...chromedp.Action) (htmlSource string, err error) {
 	pr.URL = url
 	pr.Logger.Printf("Time %d：%s", pr.RetryTimes, pr.URL)
 	if timeout <= 0 || timeout > pr.Config.Timeout {
@@ -73,10 +73,15 @@ func (pr *PageReader) Open(url string, timeout int) (htmlSource string, err erro
 	}()
 	ctx := pr.ChromeDP.Context.Value
 	var title string
-	err = chromedp.Run(ctx, pr.ChromeDP.RunWithTimeOut(&ctx, timeout, chromedp.Tasks{
+	tasks := []chromedp.Action{
 		network.Enable(),
 		network.SetExtraHTTPHeaders(pr.Headers()),
 		chromedp.Navigate(pr.URL),
+	}
+	if len(extraTasks) > 0 {
+		tasks = append(tasks, extraTasks...)
+	}
+	tasks = append(tasks, []chromedp.Action{
 		chromedp.Title(&title),
 		chromedp.ActionFunc(func(ctx context.Context) error {
 			node, err := dom.GetDocument().Do(ctx)
@@ -94,8 +99,8 @@ func (pr *PageReader) Open(url string, timeout int) (htmlSource string, err erro
 			pr.htmlSource = htmlSource
 			return err
 		}),
-	}))
-
+	}...)
+	err = chromedp.Run(ctx, pr.ChromeDP.RunWithTimeOut(&ctx, timeout, tasks))
 	if err != nil {
 		pr.Reset()
 		pr.Logger.Printf("Error: %s", err.Error())

@@ -62,6 +62,20 @@ func (pr *PageReader) Reset() *PageReader {
 	return pr
 }
 
+func (pr *PageReader) SetPageSource(html string) *PageReader {
+	pr.Logger.Print("execute SetPageSource")
+	pr.Doc = nil
+	pr.htmlSource = strings.TrimSpace(html)
+	if pr.htmlSource != "" {
+		if doc, e := goquery.NewDocumentFromReader(strings.NewReader(pr.htmlSource)); e == nil {
+			pr.Doc = doc
+		} else {
+			pr.Logger.Printf("goQuery create document Error: %s", e.Error())
+		}
+	}
+	return pr
+}
+
 func (pr PageReader) RunTasks(ctx context.Context, timeout int, tasks []chromedp.Action) error {
 	pr.Logger.Printf("Begin execute RunTasks function")
 	err := chromedp.Run(ctx, pr.ChromeDP.RunWithTimeOut(&ctx, timeout, tasks))
@@ -75,13 +89,13 @@ func (pr PageReader) RunTasks(ctx context.Context, timeout int, tasks []chromedp
 }
 
 func (pr *PageReader) Open(ctx context.Context, url string, timeout int, extraTasks ...chromedp.Action) (htmlSource string, err error) {
+	pr.Reset()
 	pr.URL = url
 	pr.Logger.Printf("Time %d：%s", pr.RetryTimes, pr.URL)
 	if timeout <= 0 || timeout > pr.Config.Timeout {
 		timeout = pr.Config.Timeout
 	}
 
-	pr.Logger.Printf("Open ctx: %#v", ctx)
 	var title string
 	tasks := []chromedp.Action{
 		network.Enable(),
@@ -117,16 +131,15 @@ func (pr *PageReader) Open(ctx context.Context, url string, timeout int, extraTa
 		// 	return err
 		// }),
 	}...)
-	pr.Logger.Printf("Tasks: %#v", tasks)
 	err = chromedp.Run(ctx, pr.ChromeDP.RunWithTimeOut(&ctx, timeout, tasks))
+	pr.SetPageSource(htmlSource)
 	if err != nil {
-		pr.Reset()
 		pr.Logger.Printf("Error: %s", err.Error())
 		if errors.Is(err, context.DeadlineExceeded) {
 			timeout += 10
 			pr.Config.RetryTimes += 1
 			if timeout <= pr.Config.MaxTimeout && pr.Config.RetryTimes <= pr.Config.MaxRetryTimes {
-				// pr.Open(ctx, url, timeout)
+				pr.Open(ctx, url, timeout)
 			}
 		}
 	} else {
@@ -134,15 +147,6 @@ func (pr *PageReader) Open(ctx context.Context, url string, timeout int, extraTa
 			title = strings.TrimSpace(title)
 		}
 		pr.Title = title
-		pr.Doc = nil
-		pr.htmlSource = htmlSource
-		if pr.htmlSource != "" {
-			if doc, e := goquery.NewDocumentFromReader(strings.NewReader(pr.htmlSource)); e == nil {
-				pr.Doc = doc
-			} else {
-				pr.Logger.Printf("goQuery create document Error: %s", e.Error())
-			}
-		}
 	}
 
 	return

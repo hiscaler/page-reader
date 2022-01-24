@@ -4,7 +4,7 @@ go 1.17
 
 require (
 	github.com/PuerkitoBio/goquery v1.8.0
-	github.com/chromedp/cdproto v0.0.0-20220117091653-dcaca7efe124
+	github.com/chromedp/cdproto v0.0.0-20220124012806-175728ec2004
 	github.com/chromedp/chromedp v0.7.6
 )
 

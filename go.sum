@@ -5,6 +5,8 @@ github.com/andybalholm/cascadia v1.3.1/go.mod h1:R4bJ1UQfqADjvDa4P6HZHLh/3OxWWEq
 github.com/chromedp/cdproto v0.0.0-20211126220118-81fa0469ad77/go.mod h1:At5TxYYdxkbQL0TSefRjhLE3Q0lgvqKKMSFUglJ7i1U=
 github.com/chromedp/cdproto v0.0.0-20220117091653-dcaca7efe124 h1:HGkoefahzXWIJJnG8b6h0ZPoSnMyXKGBarsKW9cykxw=
 github.com/chromedp/cdproto v0.0.0-20220117091653-dcaca7efe124/go.mod h1:At5TxYYdxkbQL0TSefRjhLE3Q0lgvqKKMSFUglJ7i1U=
+github.com/chromedp/cdproto v0.0.0-20220124012806-175728ec2004 h1:+hUNBppwZEBkisF8w43SCPuyWGgCRawmdrgXlzNjaWk=
+github.com/chromedp/cdproto v0.0.0-20220124012806-175728ec2004/go.mod h1:At5TxYYdxkbQL0TSefRjhLE3Q0lgvqKKMSFUglJ7i1U=
 github.com/chromedp/chromedp v0.7.6 h1:2juGaktzjwULlsn+DnvIZXFUckEp5xs+GOBroaea+jA=
 github.com/chromedp/chromedp v0.7.6/go.mod h1:ayT4YU/MGAALNfOg9gNrpGSAdnU51PMx+FCeuT1iXzo=
 github.com/chromedp/sysutil v1.0.0 h1:+ZxhTpfpZlmchB58ih/LBHX52ky7w2VhQVKQMucy3Ic=

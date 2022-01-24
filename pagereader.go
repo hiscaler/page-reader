@@ -4,7 +4,7 @@ import (
 	"context"
 	"errors"
 	"github.com/PuerkitoBio/goquery"
-	"github.com/chromedp/cdproto/dom"
+	// "github.com/chromedp/cdproto/dom"
 	"github.com/chromedp/cdproto/network"
 	"github.com/chromedp/chromedp"
 	"log"
@@ -15,7 +15,7 @@ type PageReader struct {
 	Debug bool
 	Config
 	Logger     *log.Logger
-	ChromeDP   ChromeDP
+	ChromeDP   *ChromeDP
 	URL        string
 	Title      string
 	htmlSource string
@@ -33,7 +33,8 @@ func NewPageReader(timeout int, logger *log.Logger) *PageReader {
 			RetryTimes:    1,
 			MaxRetryTimes: 3,
 		},
-		Logger: logger,
+		Logger:   logger,
+		ChromeDP: &ChromeDP{},
 	}
 }
 
@@ -61,45 +62,62 @@ func (pr *PageReader) Reset() *PageReader {
 	return pr
 }
 
-func (pr *PageReader) Open(url string, timeout int, extraTasks ...chromedp.Action) (htmlSource string, err error) {
+func (pr PageReader) RunTasks(ctx context.Context, timeout int, tasks []chromedp.Action) error {
+	pr.Logger.Printf("Begin execute RunTasks function")
+	err := chromedp.Run(ctx, pr.ChromeDP.RunWithTimeOut(&ctx, timeout, tasks))
+	if err == nil {
+		pr.Logger.Print("RunTasks successful")
+	} else {
+		pr.Logger.Printf("RunTasks error: %s", err.Error())
+	}
+
+	return err
+}
+
+func (pr *PageReader) Open(ctx context.Context, url string, timeout int, extraTasks ...chromedp.Action) (htmlSource string, err error) {
 	pr.URL = url
 	pr.Logger.Printf("Time %d：%s", pr.RetryTimes, pr.URL)
 	if timeout <= 0 || timeout > pr.Config.Timeout {
 		timeout = pr.Config.Timeout
 	}
-	pr.ChromeDP.Start(pr.Config.Timeout, *pr.Logger)
-	defer func() {
-		pr.ChromeDP.Cancel()
-	}()
-	ctx := pr.ChromeDP.Context.Value
+
+	pr.Logger.Printf("Open ctx: %#v", ctx)
 	var title string
 	tasks := []chromedp.Action{
 		network.Enable(),
 		network.SetExtraHTTPHeaders(pr.Headers()),
-		chromedp.Navigate(pr.URL),
+	}
+	if pr.URL != "" {
+		tasks = append(tasks, chromedp.Navigate(pr.URL))
+	} else {
+
 	}
 	if len(extraTasks) > 0 {
 		tasks = append(tasks, extraTasks...)
 	}
 	tasks = append(tasks, []chromedp.Action{
 		chromedp.Title(&title),
-		chromedp.ActionFunc(func(ctx context.Context) error {
-			node, err := dom.GetDocument().Do(ctx)
-			if err != nil {
-				return err
-			}
-
-			htmlSource, err = dom.GetOuterHTML().WithNodeID(node.NodeID).Do(ctx)
-			if err != nil {
-				return err
-			}
-			if htmlSource != "" {
-				htmlSource = strings.TrimSpace(htmlSource)
-			}
-			pr.htmlSource = htmlSource
-			return err
-		}),
+		chromedp.OuterHTML("html", &htmlSource),
+		// chromedp.ActionFunc(func(ctx context.Context) error {
+		// 	node, err := dom.GetDocument().Do(ctx)
+		// 	if err != nil {
+		// 		pr.Logger.Printf("err1=====%s", err.Error())
+		// 		return err
+		// 	}
+		//
+		// 	htmlSource, err = dom.GetOuterHTML().WithNodeID(node.NodeID).Do(ctx)
+		// 	if err != nil {
+		// 		pr.Logger.Printf("err2=====%s", err.Error())
+		// 		return err
+		// 	}
+		// 	if htmlSource != "" {
+		// 		htmlSource = strings.TrimSpace(htmlSource)
+		// 	}
+		// 	pr.htmlSource = htmlSource
+		// 	return err
+		// }),
 	}...)
+	pr.Logger.Printf("Tasks: %#v", tasks)
 	err = chromedp.Run(ctx, pr.ChromeDP.RunWithTimeOut(&ctx, timeout, tasks))
 	if err != nil {
 		pr.Reset()
@@ -108,7 +126,7 @@ func (pr *PageReader) Open(url string, timeout int, extraTasks ...chromedp.Actio
 			timeout += 10
 			pr.Config.RetryTimes += 1
 			if timeout <= pr.Config.MaxTimeout && pr.Config.RetryTimes <= pr.Config.MaxRetryTimes {
-				pr.Open(url, timeout)
+				// pr.Open(ctx, url, timeout)
 			}
 		}
 	} else {
@@ -117,8 +135,9 @@ func (pr *PageReader) Open(url string, timeout int, extraTasks ...chromedp.Actio
 		}
 		pr.Title = title
 		pr.Doc = nil
+		pr.htmlSource = htmlSource
 		if pr.htmlSource != "" {
-			if doc, e := goquery.NewDocumentFromReader(strings.NewReader(htmlSource)); e == nil {
+			if doc, e := goquery.NewDocumentFromReader(strings.NewReader(pr.htmlSource)); e == nil {
 				pr.Doc = doc
 			} else {
 				pr.Logger.Printf("goQuery create document Error: %s", e.Error())

@@ -10,19 +10,15 @@ import (
 )
 
 type ChromeDP struct {
-	Context struct {
-		Value           context.Context
-		CancelFunctions []context.CancelFunc
-	}
 	Headers              network.Headers
 	ExecAllocatorOptions []chromedp.ExecAllocatorOption
 }
 
-// Start Start ChromeDP
+// NewContext New ChromeDP context
 // Flags
 // headless: true
 // blink-settings: imagesEnabled=false
-func (c *ChromeDP) Start(timeout int, logger log.Logger) *ChromeDP {
+func (c *ChromeDP) NewContext(timeout int, logger log.Logger) (context.Context, []context.CancelFunc) {
 	cancelFunctions := make([]context.CancelFunc, 0)
 	options := c.ExecAllocatorOptions
 	if len(options) == 0 {
@@ -42,29 +38,12 @@ func (c *ChromeDP) Start(timeout int, logger log.Logger) *ChromeDP {
 	taskCtx, cancel = context.WithTimeout(taskCtx, timeoutDuration(timeout))
 	cancelFunctions = append(cancelFunctions, cancel)
 
-	c.Context.Value = taskCtx
-	c.Context.CancelFunctions = cancelFunctions
-	return c
-}
-
-func (c *ChromeDP) Cancel() *ChromeDP {
-	for _, cancel := range c.Context.CancelFunctions {
-		cancel()
-	}
-	return c
+	return taskCtx, cancelFunctions
 }
 
 func timeoutDuration(timeout int) time.Duration {
 	duration, _ := time.ParseDuration(fmt.Sprintf("%ds", timeout))
 	return duration
-}
-
-func (c ChromeDP) Run() error {
-	err := chromedp.Run(c.Context.Value)
-	if err != nil {
-		fmt.Println(fmt.Sprintf("chromedp.Run(taskCtx) error: %s", err.Error()))
-	}
-	return err
 }
 
 func (c ChromeDP) RunWithTimeOut(ctx *context.Context, timeout int, tasks chromedp.Tasks) chromedp.ActionFunc {

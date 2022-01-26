@@ -3,7 +3,9 @@ package pagereader
 import (
 	"context"
 	"fmt"
+	"github.com/chromedp/cdproto/cdp"
 	"github.com/chromedp/cdproto/network"
+	"github.com/chromedp/cdproto/runtime"
 	"github.com/chromedp/chromedp"
 	"log"
 	"time"
@@ -52,4 +54,13 @@ func (c ChromeDP) RunWithTimeOut(ctx *context.Context, timeout int, tasks chrome
 		defer cancel()
 		return tasks.Do(timeoutContext)
 	}
+}
+
+func (c ChromeDP) Click(sel interface{}, opts ...chromedp.QueryOption) chromedp.QueryAction {
+	return chromedp.QueryAfter(sel, func(ctx context.Context, execCtx runtime.ExecutionContextID, nodes ...*cdp.Node) error {
+		if len(nodes) > 0 {
+			return chromedp.MouseClickNode(nodes[0]).Do(ctx)
+		}
+		return nil
+	}, opts...)
 }

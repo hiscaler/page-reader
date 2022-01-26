@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"github.com/PuerkitoBio/goquery"
+	"time"
+
 	// "github.com/chromedp/cdproto/dom"
 	"github.com/chromedp/cdproto/network"
 	"github.com/chromedp/chromedp"
@@ -76,22 +78,23 @@ func (pr *PageReader) SetPageSource(html string) *PageReader {
 	return pr
 }
 
-func (pr PageReader) RunTasks(ctx context.Context, timeout int, tasks []chromedp.Action) error {
-	pr.Logger.Printf("Begin execute RunTasks function")
-	err := chromedp.Run(ctx, pr.ChromeDP.RunWithTimeOut(&ctx, timeout, tasks))
-	if err == nil {
-		pr.Logger.Print("RunTasks successful")
-	} else {
-		pr.Logger.Printf("RunTasks error: %s", err.Error())
+func (pr PageReader) RunTasks(ctx context.Context, name string, timeout int, tasks []chromedp.Action) error {
+	if name == "" {
+		name = "NO NAME"
 	}
+	notify := NewNotify("RunTasks", name)
+	err := chromedp.Run(ctx, pr.ChromeDP.RunWithTimeOut(&ctx, timeout, tasks))
+	notify.Error = err
+	pr.Logger.Print(notify.String())
 
 	return err
 }
 
 func (pr *PageReader) Open(ctx context.Context, url string, timeout int, extraTasks ...chromedp.Action) (htmlSource string, err error) {
+	notify := NewNotify("Open", url)
 	pr.Reset()
 	pr.URL = url
-	pr.Logger.Printf("Time %d：%s", pr.RetryTimes, pr.URL)
+	notify.AddLogf("#%d Time read %s", pr.RetryTimes, pr.URL)
 	if timeout <= 0 || timeout > pr.Config.Timeout {
 		timeout = pr.Config.Timeout
 	}
@@ -134,7 +137,7 @@ func (pr *PageReader) Open(ctx context.Context, url string, timeout int, extraTa
 	err = chromedp.Run(ctx, pr.ChromeDP.RunWithTimeOut(&ctx, timeout, tasks))
 	pr.SetPageSource(htmlSource)
 	if err != nil {
-		pr.Logger.Printf("Error: %s", err.Error())
+		notify.AddLogf("Read Error: %s", err.Error())
 		if errors.Is(err, context.DeadlineExceeded) {
 			timeout += 10
 			pr.Config.RetryTimes += 1
@@ -143,11 +146,15 @@ func (pr *PageReader) Open(ctx context.Context, url string, timeout int, extraTa
 			}
 		}
 	} else {
+		notify.AddLog("Read OK")
 		if title != "" {
 			title = strings.TrimSpace(title)
 		}
 		pr.Title = title
 	}
+	notify.EndTime = time.Now()
+	notify.Error = err
+	pr.Logger.Print(notify.String())
 
 	return
 }

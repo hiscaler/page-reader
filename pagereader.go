@@ -15,12 +15,12 @@ import (
 type PageReader struct {
 	Debug bool
 	Config
-	Logger     *log.Logger
-	ChromeDP   *ChromeDP
-	URL        string
-	Title      string
-	htmlSource string
-	Doc        *goquery.Document
+	Logger   *log.Logger
+	ChromeDP *ChromeDP
+	URL      string
+	Title    string
+	html     string
+	Doc      *goquery.Document
 }
 
 func NewPageReader(timeout int, logger *log.Logger) *PageReader {
@@ -57,21 +57,21 @@ func (pr PageReader) Headers() network.Headers {
 }
 
 func (pr *PageReader) Reset() *PageReader {
-	pr.htmlSource = ""
+	pr.html = ""
 	pr.Title = ""
 	pr.Doc = nil
 	return pr
 }
 
-func (pr *PageReader) SetPageSource(html string) *PageReader {
-	pr.Logger.Print("execute SetPageSource")
+func (pr *PageReader) SetHtml(html string) *PageReader {
+	pr.Logger.Print("execute SetHtml")
 	if html == "" {
 		pr.Logger.Printf("HTML is empty")
 	}
 	pr.Doc = nil
-	pr.htmlSource = strings.TrimSpace(html)
-	if pr.htmlSource != "" {
-		if doc, e := goquery.NewDocumentFromReader(strings.NewReader(pr.htmlSource)); e == nil {
+	pr.html = strings.TrimSpace(html)
+	if pr.html != "" {
+		if doc, e := goquery.NewDocumentFromReader(strings.NewReader(pr.html)); e == nil {
 			pr.Doc = doc
 		} else {
 			pr.Logger.Printf("goQuery create document Error: %s", e.Error())
@@ -141,7 +141,7 @@ document.getElementsByTagName('head')[0].appendChild(JQ);
 	return
 }
 
-func (pr *PageReader) Open(ctx context.Context, url string, timeout int, extraTasks ...chromedp.Action) (htmlSource string, err error) {
+func (pr *PageReader) Open(ctx context.Context, url string, timeout int, extraTasks ...chromedp.Action) (html string, err error) {
 	notify := NewNotify("Open", url)
 	pr.Reset()
 	pr.URL = url
@@ -165,7 +165,7 @@ func (pr *PageReader) Open(ctx context.Context, url string, timeout int, extraTa
 	}
 	tasks = append(tasks, []chromedp.Action{
 		chromedp.Title(&title),
-		chromedp.OuterHTML("html", &htmlSource),
+		chromedp.OuterHTML("html", &html),
 		// chromedp.ActionFunc(func(ctx context.Context) error {
 		// 	node, err := dom.GetDocument().Do(ctx)
 		// 	if err != nil {
@@ -186,7 +186,7 @@ func (pr *PageReader) Open(ctx context.Context, url string, timeout int, extraTa
 		// }),
 	}...)
 	err = chromedp.Run(ctx, pr.ChromeDP.RunWithTimeOut(&ctx, timeout, tasks))
-	pr.SetPageSource(htmlSource)
+	pr.SetHtml(html)
 	if err != nil {
 		notify.AddLogf("Read Error: %s", err.Error())
 		if errors.Is(err, context.DeadlineExceeded) {
@@ -217,11 +217,11 @@ func (pr *PageReader) WaitReady(ctx context.Context, sel interface{}, opts ...ch
 		chromedp.OuterHTML("html", &html),
 	}
 	pr.RunTasks(ctx, "WaitReady", 0, tasks)
-	pr.SetPageSource(html)
+	pr.SetHtml(html)
 	return pr
 }
 
-func (pr *PageReader) SetHtmlSource(ctx context.Context) *PageReader {
+func (pr *PageReader) ObtainHtml(ctx context.Context) *PageReader {
 	var html string
 	tasks := chromedp.Tasks{chromedp.Sleep(2 * time.Second)}
 	if pr.JQueryIsLoaded(ctx) {
@@ -229,19 +229,18 @@ func (pr *PageReader) SetHtmlSource(ctx context.Context) *PageReader {
 	} else {
 		tasks = append(tasks, chromedp.OuterHTML("html", &html))
 	}
-	pr.RunTasks(ctx, "SetHtmlSource", 6, tasks)
-	pr.htmlSource = html
+	pr.RunTasks(ctx, "ObtainHtml", 6, tasks)
+	pr.SetHtml(html)
 	return pr
 }
 
-func (pr PageReader) HtmlSource() string {
-	return pr.htmlSource
+func (pr PageReader) Html() string {
+	return pr.html
 }
 
 func (pr PageReader) Contains(s string) bool {
-	html := pr.htmlSource
-	if html == "" {
-		return strings.Contains(strings.ToLower(html), strings.ToLower(s))
+	if pr.html != "" {
+		return strings.Contains(strings.ToLower(pr.html), strings.ToLower(s))
 	}
 	return false
 }

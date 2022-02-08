@@ -76,7 +76,6 @@ func (pr PageReader) RunTasks(ctx context.Context, name string, timeout int, tas
 	}
 
 	notify.Error = err
-	notify.EndTime = time.Now()
 	pr.Logger.Print(notify.String())
 
 	return err
@@ -193,7 +192,6 @@ func (pr *PageReader) Open(ctx context.Context, url string, timeout int, extraTa
 		}
 		pr.Title = title
 	}
-	notify.EndTime = time.Now()
 	notify.Error = err
 	pr.Logger.Print(notify.String())
 
@@ -228,7 +226,6 @@ func (pr *PageReader) ObtainHtml(ctx context.Context) *PageReader {
 }
 
 func (pr *PageReader) SetHtml(html string) *PageReader {
-	pr.Logger.Print("execute SetHtml")
 	if html == "" {
 		pr.Logger.Printf("HTML is empty")
 	}

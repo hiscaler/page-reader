@@ -110,12 +110,13 @@ func (pr PageReader) JQueryIsLoaded(ctx context.Context) (loaded bool) {
 }
 
 func (pr *PageReader) AddJQuery(ctx context.Context, timeout int) (loaded bool, err error) {
+	ts := time.Now().Unix()
 	if pr.JQueryIsLoaded(ctx) {
 		return true, nil
 	}
 
-	if timeout < 4 {
-		timeout = 10
+	if timeout < 6 {
+		timeout = 6
 	}
 	err = pr.RunTasks(ctx, "AddJQuery", timeout, chromedp.Tasks{
 		chromedp.EvaluateAsDevTools(`
@@ -123,19 +124,17 @@ var JQ = document.createElement('script');
 JQ.src = "https://cdn.bootcss.com/jquery/1.4.2/jquery.js";
 document.getElementsByTagName('head')[0].appendChild(JQ);
 `, nil),
-		chromedp.Sleep(time.Duration(timeout-6) * time.Second),
+		chromedp.Sleep(2 * time.Second),
 	})
 	if err != nil {
 		pr.Logger.Printf("AddJQuery error: %s", err.Error())
 	} else {
-		times := 0
 		for {
-			times++
 			loaded = pr.JQueryIsLoaded(ctx)
-			if loaded || times > 3 {
+			if loaded || time.Now().Unix()-ts >= int64(timeout) {
 				break
 			}
-			time.Sleep(800 * time.Millisecond)
+			time.Sleep(500 * time.Millisecond)
 		}
 	}
 

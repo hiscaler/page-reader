@@ -63,23 +63,6 @@ func (pr *PageReader) Reset() *PageReader {
 	return pr
 }
 
-func (pr *PageReader) SetHtml(html string) *PageReader {
-	pr.Logger.Print("execute SetHtml")
-	if html == "" {
-		pr.Logger.Printf("HTML is empty")
-	}
-	pr.Doc = nil
-	pr.html = strings.TrimSpace(html)
-	if pr.html != "" {
-		if doc, e := goquery.NewDocumentFromReader(strings.NewReader(pr.html)); e == nil {
-			pr.Doc = doc
-		} else {
-			pr.Logger.Printf("goQuery create document Error: %s", e.Error())
-		}
-	}
-	return pr
-}
-
 func (pr PageReader) RunTasks(ctx context.Context, name string, timeout int, tasks []chromedp.Action) error {
 	var err error
 	if name == "" {
@@ -123,6 +106,13 @@ func (pr *PageReader) AddJQuery(ctx context.Context, timeout int) (loaded bool, 
 var JQ = document.createElement('script');
 JQ.src = "https://cdn.bootcss.com/jquery/1.4.2/jquery.js";
 document.getElementsByTagName('head')[0].appendChild(JQ);
+function sleep(delay) {
+    const start = (new Date()).getTime();
+    while ((new Date()).getTime() < (start + delay)) {
+    }
+    let seconds = ((new Date()).getTime() - start) / 1000;
+    console.info("Sleep " + seconds + " Seconds");
+}
 `, nil),
 		chromedp.Sleep(2 * time.Second),
 	})
@@ -229,8 +219,28 @@ func (pr *PageReader) ObtainHtml(ctx context.Context) *PageReader {
 	} else {
 		tasks = append(tasks, chromedp.OuterHTML("html", &html))
 	}
-	pr.RunTasks(ctx, "ObtainHtml", 6, tasks)
+	err := pr.RunTasks(ctx, "ObtainHtml", 6, tasks)
+	if err != nil {
+		pr.Logger.Printf("ObtainHtml error: %s", err.Error())
+	}
 	pr.SetHtml(html)
+	return pr
+}
+
+func (pr *PageReader) SetHtml(html string) *PageReader {
+	pr.Logger.Print("execute SetHtml")
+	if html == "" {
+		pr.Logger.Printf("HTML is empty")
+	}
+	pr.Doc = nil
+	pr.html = strings.TrimSpace(html)
+	if pr.html != "" {
+		if doc, e := goquery.NewDocumentFromReader(strings.NewReader(pr.html)); e == nil {
+			pr.Doc = doc
+		} else {
+			pr.Logger.Printf("goQuery create document Error: %s", e.Error())
+		}
+	}
 	return pr
 }
 

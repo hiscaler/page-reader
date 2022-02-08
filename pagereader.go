@@ -5,7 +5,6 @@ import (
 	"errors"
 	"github.com/PuerkitoBio/goquery"
 	"time"
-
 	// "github.com/chromedp/cdproto/dom"
 	"github.com/chromedp/cdproto/network"
 	"github.com/chromedp/chromedp"
@@ -66,6 +65,9 @@ func (pr *PageReader) Reset() *PageReader {
 
 func (pr *PageReader) SetPageSource(html string) *PageReader {
 	pr.Logger.Print("execute SetPageSource")
+	if html == "" {
+		pr.Logger.Printf("HTML is empty")
+	}
 	pr.Doc = nil
 	pr.htmlSource = strings.TrimSpace(html)
 	if pr.htmlSource != "" {
@@ -79,13 +81,57 @@ func (pr *PageReader) SetPageSource(html string) *PageReader {
 }
 
 func (pr PageReader) RunTasks(ctx context.Context, name string, timeout int, tasks []chromedp.Action) error {
+	var err error
 	if name == "" {
 		name = "NO NAME"
 	}
 	notify := NewNotify("RunTasks", name)
-	err := chromedp.Run(ctx, pr.ChromeDP.RunWithTimeOut(&ctx, timeout, tasks))
+	if timeout == 0 {
+		err = chromedp.Run(ctx, tasks...)
+	} else {
+		err = chromedp.Run(ctx, pr.ChromeDP.RunWithTimeOut(&ctx, timeout, tasks))
+	}
+
 	notify.Error = err
+	notify.EndTime = time.Now()
 	pr.Logger.Print(notify.String())
+
+	return err
+}
+
+func (pr *PageReader) AddJQuery(ctx context.Context, timeout int) error {
+	if timeout < 4 {
+		timeout = 4
+	}
+	tasks := chromedp.Tasks{
+		chromedp.EvaluateAsDevTools(`
+var JQ = document.createElement('script');
+JQ.src = "https://cdn.bootcss.com/jquery/1.4.2/jquery.js";
+document.getElementsByTagName('head')[0].appendChild(JQ);
+`, nil),
+		chromedp.Sleep(time.Duration(timeout-1) * time.Second),
+	}
+	err := pr.RunTasks(ctx, "AddJQuery", timeout, tasks)
+	if err != nil {
+		pr.Logger.Printf("AddJQuery error: %s", err.Error())
+	} else {
+		var loaded bool
+		tasks = chromedp.Tasks{
+			chromedp.EvaluateAsDevTools(`
+typeof jQuery === "function";
+`, &loaded),
+		}
+		err = pr.RunTasks(ctx, "CheckJQueryLoadStatus", timeout, tasks)
+		if err != nil {
+			pr.Logger.Printf("CheckJQueryLoadStatus error: %s", err.Error())
+		} else {
+			if loaded {
+				pr.Logger.Printf("JQuery load success.")
+			} else {
+				pr.Logger.Printf("JQuery load fail.")
+			}
+		}
+	}
 
 	return err
 }
@@ -157,6 +203,17 @@ func (pr *PageReader) Open(ctx context.Context, url string, timeout int, extraTa
 	pr.Logger.Print(notify.String())
 
 	return
+}
+
+func (pr *PageReader) WaitReady(ctx context.Context, sel interface{}, opts ...chromedp.QueryOption) *PageReader {
+	var html string
+	tasks := chromedp.Tasks{
+		chromedp.WaitReady(sel, opts...),
+		chromedp.OuterHTML("html", &html),
+	}
+	pr.SetPageSource(html)
+	pr.RunTasks(ctx, "WaitReady", 0, tasks)
+	return pr
 }
 
 func (pr PageReader) HtmlSource() string {

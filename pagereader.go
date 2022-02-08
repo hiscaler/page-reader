@@ -101,7 +101,7 @@ func (pr PageReader) RunTasks(ctx context.Context, name string, timeout int, tas
 
 func (pr *PageReader) AddJQuery(ctx context.Context, timeout int) (loaded bool, err error) {
 	if timeout < 4 {
-		timeout = 4
+		timeout = 10
 	}
 	checkJQueryLoadTasks := chromedp.Tasks{
 		chromedp.EvaluateAsDevTools(`typeof jQuery === "function";`, &loaded),
@@ -117,20 +117,28 @@ var JQ = document.createElement('script');
 JQ.src = "https://cdn.bootcss.com/jquery/1.4.2/jquery.js";
 document.getElementsByTagName('head')[0].appendChild(JQ);
 `, nil),
-		chromedp.Sleep(time.Duration(timeout-1) * time.Second),
+		chromedp.Sleep(time.Duration(timeout-6) * time.Second),
 	})
 	if err != nil {
 		pr.Logger.Printf("AddJQuery error: %s", err.Error())
 	} else {
-		err = pr.RunTasks(ctx, "CheckJQueryLoadStatus", timeout, checkJQueryLoadTasks)
-		if err != nil {
-			pr.Logger.Printf("CheckJQueryLoadStatus error: %s", err.Error())
-		} else {
-			if loaded {
-				pr.Logger.Printf("JQuery load success.")
+		times := 0
+		for {
+			times++
+			err = pr.RunTasks(ctx, "CheckJQueryLoadStatus", timeout, checkJQueryLoadTasks)
+			if err != nil {
+				pr.Logger.Printf("CheckJQueryLoadStatus error: %s", err.Error())
 			} else {
-				pr.Logger.Printf("JQuery load fail.")
+				if loaded {
+					pr.Logger.Printf("JQuery load success.")
+				} else {
+					pr.Logger.Printf("JQuery load fail.")
+				}
 			}
+			if loaded || times > 3 {
+				break
+			}
+			time.Sleep(800 * time.Millisecond)
 		}
 	}
 
@@ -212,8 +220,8 @@ func (pr *PageReader) WaitReady(ctx context.Context, sel interface{}, opts ...ch
 		chromedp.WaitReady(sel, opts...),
 		chromedp.OuterHTML("html", &html),
 	}
-	pr.SetPageSource(html)
 	pr.RunTasks(ctx, "WaitReady", 0, tasks)
+	pr.SetPageSource(html)
 	return pr
 }
 
@@ -224,7 +232,7 @@ func (pr PageReader) HtmlSource() string {
 func (pr PageReader) Contains(s string) bool {
 	html := pr.htmlSource
 	if html == "" {
-		return strings.Contains(html, s)
+		return strings.Contains(strings.ToLower(html), strings.ToLower(s))
 	}
 	return false
 }
@@ -240,15 +248,21 @@ func findBySelector(doc *goquery.Document, selector string) *goquery.Selection {
 
 func (pr PageReader) Text(selector string, selectors ...string) (value string) {
 	selectorValues := append([]string{selector}, selectors...)
-	for _, selector := range selectorValues {
-		if s := findBySelector(pr.Doc, selector); s != nil {
+	for _, sel := range selectorValues {
+		if s := findBySelector(pr.Doc, sel); s != nil {
 			value = s.Text()
 			if value != "" {
 				value = strings.TrimSpace(value)
 			}
 		}
 		if pr.Debug {
-			pr.Logger.Printf("选择器 %s 文本查询结果：%s", selector, value)
+			res := value
+			if res == "" {
+				res = "未匹配"
+			}
+			pr.Logger.Printf(`
+  Selector: %s
+Query Text: %s`, sel, res)
 		}
 		if value != "" {
 			break
@@ -266,7 +280,9 @@ func (pr PageReader) Attr(selector, attrName string) (value string, exists bool)
 		}
 	}
 	if pr.Debug {
-		pr.Logger.Printf("选择器 %s 属性 %s 查询结果为：%s，属性 %s %v", selector, attrName, value, attrName, exists)
+		pr.Logger.Printf(` 
+    Selector: %s [ Attr: %s ]
+Query Result: [ Exists: %v ] [ Value: %s ]"`, selector, attrName, exists, value)
 	}
 	return
 }

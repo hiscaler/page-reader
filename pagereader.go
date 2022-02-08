@@ -99,29 +99,30 @@ func (pr PageReader) RunTasks(ctx context.Context, name string, timeout int, tas
 	return err
 }
 
-func (pr *PageReader) AddJQuery(ctx context.Context, timeout int) error {
+func (pr *PageReader) AddJQuery(ctx context.Context, timeout int) (loaded bool, err error) {
 	if timeout < 4 {
 		timeout = 4
 	}
-	tasks := chromedp.Tasks{
+	checkJQueryLoadTasks := chromedp.Tasks{
+		chromedp.EvaluateAsDevTools(`typeof jQuery === "function";`, &loaded),
+	}
+	pr.RunTasks(ctx, "CheckJQueryLoadStatus prepare", timeout, checkJQueryLoadTasks)
+	if loaded {
+		return
+	}
+
+	err = pr.RunTasks(ctx, "AddJQuery", timeout, chromedp.Tasks{
 		chromedp.EvaluateAsDevTools(`
 var JQ = document.createElement('script');
 JQ.src = "https://cdn.bootcss.com/jquery/1.4.2/jquery.js";
 document.getElementsByTagName('head')[0].appendChild(JQ);
 `, nil),
 		chromedp.Sleep(time.Duration(timeout-1) * time.Second),
-	}
-	err := pr.RunTasks(ctx, "AddJQuery", timeout, tasks)
+	})
 	if err != nil {
 		pr.Logger.Printf("AddJQuery error: %s", err.Error())
 	} else {
-		var loaded bool
-		tasks = chromedp.Tasks{
-			chromedp.EvaluateAsDevTools(`
-typeof jQuery === "function";
-`, &loaded),
-		}
-		err = pr.RunTasks(ctx, "CheckJQueryLoadStatus", timeout, tasks)
+		err = pr.RunTasks(ctx, "CheckJQueryLoadStatus", timeout, checkJQueryLoadTasks)
 		if err != nil {
 			pr.Logger.Printf("CheckJQueryLoadStatus error: %s", err.Error())
 		} else {
@@ -133,7 +134,7 @@ typeof jQuery === "function";
 		}
 	}
 
-	return err
+	return
 }
 
 func (pr *PageReader) Open(ctx context.Context, url string, timeout int, extraTasks ...chromedp.Action) (htmlSource string, err error) {

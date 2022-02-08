@@ -99,18 +99,24 @@ func (pr PageReader) RunTasks(ctx context.Context, name string, timeout int, tas
 	return err
 }
 
-func (pr *PageReader) AddJQuery(ctx context.Context, timeout int) (loaded bool, err error) {
-	if timeout < 4 {
-		timeout = 10
-	}
+// JQueryIsLoaded Check JQuery is loaded
+func (pr PageReader) JQueryIsLoaded(ctx context.Context) (loaded bool) {
 	checkJQueryLoadTasks := chromedp.Tasks{
 		chromedp.EvaluateAsDevTools(`typeof jQuery === "function";`, &loaded),
 	}
-	pr.RunTasks(ctx, "CheckJQueryLoadStatus prepare", timeout, checkJQueryLoadTasks)
-	if loaded {
-		return
+	pr.RunTasks(ctx, "JQueryIsLoaded", 1, checkJQueryLoadTasks)
+	pr.Logger.Printf("JQuery loaded: %v", loaded)
+	return
+}
+
+func (pr *PageReader) AddJQuery(ctx context.Context, timeout int) (loaded bool, err error) {
+	if pr.JQueryIsLoaded(ctx) {
+		return true, nil
 	}
 
+	if timeout < 4 {
+		timeout = 10
+	}
 	err = pr.RunTasks(ctx, "AddJQuery", timeout, chromedp.Tasks{
 		chromedp.EvaluateAsDevTools(`
 var JQ = document.createElement('script');
@@ -125,16 +131,7 @@ document.getElementsByTagName('head')[0].appendChild(JQ);
 		times := 0
 		for {
 			times++
-			err = pr.RunTasks(ctx, "CheckJQueryLoadStatus", timeout, checkJQueryLoadTasks)
-			if err != nil {
-				pr.Logger.Printf("CheckJQueryLoadStatus error: %s", err.Error())
-			} else {
-				if loaded {
-					pr.Logger.Printf("JQuery load success.")
-				} else {
-					pr.Logger.Printf("JQuery load fail.")
-				}
-			}
+			loaded = pr.JQueryIsLoaded(ctx)
 			if loaded || times > 3 {
 				break
 			}
@@ -225,6 +222,19 @@ func (pr *PageReader) WaitReady(ctx context.Context, sel interface{}, opts ...ch
 	return pr
 }
 
+func (pr *PageReader) SetHtmlSource(ctx context.Context) *PageReader {
+	var html string
+	tasks := chromedp.Tasks{chromedp.Sleep(2 * time.Second)}
+	if pr.JQueryIsLoaded(ctx) {
+		tasks = append(tasks, chromedp.EvaluateAsDevTools(`$("html").html();`, &html))
+	} else {
+		tasks = append(tasks, chromedp.OuterHTML("html", &html))
+	}
+	pr.RunTasks(ctx, "SetHtmlSource", 6, tasks)
+	pr.htmlSource = html
+	return pr
+}
+
 func (pr PageReader) HtmlSource() string {
 	return pr.htmlSource
 }
@@ -256,13 +266,9 @@ func (pr PageReader) Text(selector string, selectors ...string) (value string) {
 			}
 		}
 		if pr.Debug {
-			res := value
-			if res == "" {
-				res = "未匹配"
-			}
 			pr.Logger.Printf(`
   Selector: %s
-Query Text: %s`, sel, res)
+Query Text: %s`, sel, value)
 		}
 		if value != "" {
 			break

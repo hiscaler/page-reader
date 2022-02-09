@@ -66,7 +66,7 @@ func (pr *PageReader) Reset() *PageReader {
 func (pr PageReader) RunTasks(ctx context.Context, name string, timeout int, tasks []chromedp.Action) error {
 	var err error
 	if name == "" {
-		name = "NO NAME"
+		name = "Unknown"
 	}
 	notify := NewNotify("RunTasks", name)
 	if timeout == 0 {
@@ -134,7 +134,7 @@ func (pr *PageReader) Open(ctx context.Context, url string, timeout int, extraTa
 	notify := NewNotify("Open", url)
 	pr.Reset()
 	pr.URL = url
-	notify.AddLogf("#%d Time read %s", pr.RetryTimes, pr.URL)
+	notify.AddLogf("#%d Open %s", pr.RetryTimes, pr.URL)
 	if timeout <= 0 || timeout > pr.Config.Timeout {
 		timeout = pr.Config.Timeout
 	}
@@ -143,18 +143,14 @@ func (pr *PageReader) Open(ctx context.Context, url string, timeout int, extraTa
 	tasks := []chromedp.Action{
 		network.Enable(),
 		network.SetExtraHTTPHeaders(pr.Headers()),
-	}
-	if pr.URL != "" {
-		tasks = append(tasks, chromedp.Navigate(pr.URL))
-	} else {
-
+		chromedp.Navigate(pr.URL),
 	}
 	if len(extraTasks) > 0 {
 		tasks = append(tasks, extraTasks...)
 	}
 	tasks = append(tasks, []chromedp.Action{
 		chromedp.Title(&title),
-		chromedp.OuterHTML("html", &html),
+		chromedp.OuterHTML("html", &html, chromedp.ByQuery),
 		// chromedp.ActionFunc(func(ctx context.Context) error {
 		// 	node, err := dom.GetDocument().Do(ctx)
 		// 	if err != nil {
@@ -177,7 +173,7 @@ func (pr *PageReader) Open(ctx context.Context, url string, timeout int, extraTa
 	err = chromedp.Run(ctx, pr.ChromeDP.RunWithTimeOut(&ctx, timeout, tasks))
 	pr.SetHtml(html)
 	if err != nil {
-		notify.AddLogf("Read Error: %s", err.Error())
+		notify.AddLogf("Open faild, error: %s", err.Error())
 		if errors.Is(err, context.DeadlineExceeded) {
 			timeout += 10
 			pr.Config.RetryTimes += 1
@@ -186,10 +182,11 @@ func (pr *PageReader) Open(ctx context.Context, url string, timeout int, extraTa
 			}
 		}
 	} else {
-		notify.AddLog("Read OK")
+		notify.AddLog("Open success")
 		if title != "" {
 			title = strings.TrimSpace(title)
 		}
+		notify.AddLogf("Title: %s", title)
 		pr.Title = title
 	}
 	notify.Error = err
@@ -202,7 +199,7 @@ func (pr *PageReader) WaitReady(ctx context.Context, sel interface{}, opts ...ch
 	var html string
 	tasks := chromedp.Tasks{
 		chromedp.WaitReady(sel, opts...),
-		chromedp.OuterHTML("html", &html),
+		chromedp.OuterHTML("html", &html, chromedp.ByQuery),
 	}
 	pr.RunTasks(ctx, "WaitReady", 0, tasks)
 	pr.SetHtml(html)
@@ -215,7 +212,7 @@ func (pr *PageReader) ObtainHtml(ctx context.Context) *PageReader {
 	if pr.JQueryIsLoaded(ctx) {
 		tasks = append(tasks, chromedp.EvaluateAsDevTools(`$("html").html();`, &html))
 	} else {
-		tasks = append(tasks, chromedp.OuterHTML("html", &html))
+		tasks = append(tasks, chromedp.OuterHTML("html", &html, chromedp.ByQuery))
 	}
 	err := pr.RunTasks(ctx, "ObtainHtml", 6, tasks)
 	if err != nil {

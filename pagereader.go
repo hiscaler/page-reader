@@ -21,6 +21,7 @@ type PageReader struct {
 	Title    string
 	html     string
 	Doc      *goquery.Document
+	Error    error
 }
 
 func NewPageReader(timeout int, logger *log.Logger) *PageReader {
@@ -74,7 +75,7 @@ func (pr PageReader) RunTasks(ctx context.Context, name string, timeout int, tas
 	} else {
 		err = chromedp.Run(ctx, pr.ChromeDP.RunWithTimeOut(&ctx, timeout, tasks))
 	}
-
+	pr.Error = err
 	notify.Error = err
 	pr.Logger.Print(notify.String())
 
@@ -113,7 +114,6 @@ function sleep(delay) {
     console.info("Sleep " + seconds + " Seconds");
 }
 `, nil),
-		chromedp.Sleep(2 * time.Second),
 	})
 	if err != nil {
 		pr.Logger.Printf("AddJQuery error: %s", err.Error())
@@ -123,7 +123,7 @@ function sleep(delay) {
 			if loaded || time.Now().Unix()-ts >= int64(timeout) {
 				break
 			}
-			time.Sleep(500 * time.Millisecond)
+			time.Sleep(1 * time.Second)
 		}
 	}
 
@@ -195,6 +195,14 @@ func (pr *PageReader) Open(ctx context.Context, url string, timeout int, extraTa
 	return
 }
 
+func (pr PageReader) Sleep(ctx context.Context, seconds int) {
+	pr.Logger.Printf("Sleep %d seconds", seconds)
+	err := chromedp.Run(ctx, chromedp.Tasks{chromedp.Sleep(time.Duration(seconds) * time.Second)})
+	if err != nil {
+		pr.Logger.Printf("Sleep error: %s", err.Error())
+	}
+}
+
 func (pr *PageReader) WaitReady(ctx context.Context, sel interface{}, opts ...chromedp.QueryOption) *PageReader {
 	var html string
 	tasks := chromedp.Tasks{
@@ -208,15 +216,15 @@ func (pr *PageReader) WaitReady(ctx context.Context, sel interface{}, opts ...ch
 
 func (pr *PageReader) ObtainHtml(ctx context.Context) *PageReader {
 	var html string
-	tasks := chromedp.Tasks{chromedp.Sleep(2 * time.Second)}
+	var task chromedp.Action
 	if pr.JQueryIsLoaded(ctx) {
-		tasks = append(tasks, chromedp.EvaluateAsDevTools(`$("html").html();`, &html))
+		task = chromedp.EvaluateAsDevTools(`$("html").html();`, &html)
 	} else {
-		tasks = append(tasks, chromedp.OuterHTML("html", &html, chromedp.ByQuery))
+		task = chromedp.OuterHTML("html", &html, chromedp.ByQuery)
 	}
-	err := pr.RunTasks(ctx, "ObtainHtml", 6, tasks)
-	if err != nil {
-		pr.Logger.Printf("ObtainHtml error: %s", err.Error())
+	pr.Error = pr.RunTasks(ctx, "ObtainHtml", 6, chromedp.Tasks{task})
+	if pr.Error != nil {
+		pr.Logger.Printf("ObtainHtml error: %s", pr.Error.Error())
 	}
 	pr.SetHtml(html)
 	return pr

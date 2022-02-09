@@ -209,7 +209,7 @@ func (pr *PageReader) WaitReady(ctx context.Context, sel interface{}, opts ...ch
 		chromedp.WaitReady(sel, opts...),
 		chromedp.OuterHTML("html", &html, chromedp.ByQuery),
 	}
-	pr.RunTasks(ctx, "WaitReady", 0, tasks)
+	pr.Error = pr.RunTasks(ctx, "WaitReady", 0, tasks)
 	pr.SetHtml(html)
 	return pr
 }

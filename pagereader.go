@@ -195,6 +195,17 @@ func (pr *PageReader) Open(ctx context.Context, url string, timeout int, extraTa
 	return
 }
 
+func (pr *PageReader) Refresh(ctx context.Context, timeout int, refreshFunc func(html string) bool, times int) *PageReader {
+	if refreshFunc != nil {
+		if refreshFunc(pr.html) {
+			Retry(func() error {
+				return pr.RunTasks(ctx, "Refresh", timeout, chromedp.Tasks{chromedp.Reload()})
+			}, times, pr.Logger)
+		}
+	}
+	return pr
+}
+
 func (pr PageReader) Sleep(ctx context.Context, seconds int) {
 	pr.Logger.Printf("Sleep %d seconds", seconds)
 	err := chromedp.Run(ctx, chromedp.Tasks{chromedp.Sleep(time.Duration(seconds) * time.Second)})

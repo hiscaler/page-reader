@@ -6,7 +6,9 @@ import (
 	"github.com/chromedp/chromedp"
 	"log"
 	"os"
+	"strings"
 	"testing"
+	"time"
 )
 
 var pageReader *PageReader
@@ -54,6 +56,26 @@ func TestPageReader_Text(t *testing.T) {
 		}
 	}()
 	_, err := pageReader.Open(ctx, "https://www.amazon.com/s?me=A21ML91ENNQT46&marketplaceID=ATVPDKIKX0DER", 20)
+	if err != nil {
+		t.Errorf("error: %s", err.Error())
+	} else {
+		text := pageReader.Text("#search > span > div > h1 > div > div.sg-col-14-of-20.sg-col.s-breadcrumb.sg-col-10-of-16.sg-col-6-of-12 > div > div > span", "#search > span")
+		fmt.Println(fmt.Sprintf("Text: %s", text))
+	}
+}
+
+}
+
+func TestPageReader_Refresh(t *testing.T) {
+	defer func() {
+		for _, cancelFunc := range ctxCancelFunctions {
+			cancelFunc()
+		}
+	}()
+	_, err := pageReader.Open(ctx, "https://www.amazon.com/s?me=A21ML91ENNQT46&marketplaceID=ATVPDKIKX0DER", 20)
+	pageReader.Refresh(ctx, 10, func(html string) bool {
+		return html == "" || strings.Contains(html, "messaging-messages-no-results")
+	}, 3)
 	if err != nil {
 		t.Errorf("error: %s", err.Error())
 	} else {

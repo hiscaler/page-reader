@@ -212,13 +212,9 @@ func (pr PageReader) Sleep(ctx context.Context, seconds int) {
 }
 
 func (pr *PageReader) WaitReady(ctx context.Context, sel interface{}, opts ...chromedp.QueryOption) *PageReader {
-	var html string
-	tasks := chromedp.Tasks{
+	pr.Error = pr.RunTasks(ctx, "WaitReady", 0, chromedp.Tasks{
 		chromedp.WaitReady(sel, opts...),
-		chromedp.OuterHTML("html", &html, chromedp.ByQuery),
-	}
-	pr.Error = pr.RunTasks(ctx, "WaitReady", 0, tasks)
-	pr.SetHtml(html)
+	})
 	return pr
 }
 

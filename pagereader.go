@@ -78,7 +78,6 @@ func (pr PageReader) RunTasks(ctx context.Context, name string, timeout int, tas
 	pr.Error = err
 	notify.Error = err
 	pr.Logger.Print(notify.String())
-
 	return err
 }
 
@@ -126,7 +125,6 @@ function sleep(delay) {
 			time.Sleep(1 * time.Second)
 		}
 	}
-
 	return
 }
 
@@ -191,7 +189,6 @@ func (pr *PageReader) Open(ctx context.Context, url string, timeout int, extraTa
 	}
 	notify.Error = err
 	pr.Logger.Print(notify.String())
-
 	return
 }
 
@@ -262,6 +259,10 @@ func (pr PageReader) Html() string {
 }
 
 func (pr PageReader) Contains(s string) bool {
+	if s == "" {
+		return true
+	}
+
 	if pr.html != "" {
 		return strings.Contains(strings.ToLower(pr.html), strings.ToLower(s))
 	}
@@ -273,7 +274,6 @@ func findBySelector(doc *goquery.Document, selector string) *goquery.Selection {
 	if doc != nil {
 		s = doc.Find(selector)
 	}
-
 	return s
 }
 
@@ -295,7 +295,6 @@ Query Text: %s`, sel, value)
 			break
 		}
 	}
-
 	return
 }
 
@@ -307,7 +306,7 @@ func (pr PageReader) Attr(selector, attrName string) (value string, exists bool)
 		}
 	}
 	if pr.Debug {
-		pr.Logger.Printf(` 
+		pr.Logger.Printf(`
     Selector: %s [ Attr: %s ]
 Query Result: [ Exists: %v ] [ Value: %s ]"`, selector, attrName, exists, value)
 	}

@@ -12,8 +12,31 @@ import (
 )
 
 type ChromeDP struct {
-	Headers              network.Headers
+	httpHeaders          network.Headers
 	ExecAllocatorOptions []chromedp.ExecAllocatorOption
+}
+
+func (c *ChromeDP) SetHTTPHeader(k, v string) *ChromeDP {
+	c.httpHeaders[k] = v
+	return c
+}
+
+func (c *ChromeDP) SetHTTPHeaders(kv map[string]string) *ChromeDP {
+	for k, v := range kv {
+		c.httpHeaders[k] = v
+	}
+	return c
+}
+
+func (c ChromeDP) HttpHeaders() network.Headers {
+	headers := c.httpHeaders
+	if len(headers) == 0 {
+		headers = network.Headers{
+			"accept-encoding":           "gzip, deflate, br",
+			"upgrade-insecure-requests": "1",
+		}
+	}
+	return headers
 }
 
 // NewContext New ChromeDP context

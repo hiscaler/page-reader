@@ -4,12 +4,11 @@ import (
 	"context"
 	"errors"
 	"github.com/PuerkitoBio/goquery"
-	"time"
-	// "github.com/chromedp/cdproto/dom"
 	"github.com/chromedp/cdproto/network"
 	"github.com/chromedp/chromedp"
 	"log"
 	"strings"
+	"time"
 )
 
 type PageReader struct {
@@ -46,15 +45,6 @@ func (pr *PageReader) SetMaxTryTimes(times int) *PageReader {
 	}
 	pr.Config.MaxRetryTimes = times
 	return pr
-}
-
-func (pr PageReader) Headers() network.Headers {
-	headers := network.Headers{
-		"accept-encoding":           "gzip, deflate, br",
-		"accept-language":           "zh-CN,zh;q=0.9",
-		"upgrade-insecure-requests": "1",
-	}
-	return headers
 }
 
 func (pr *PageReader) Reset() *PageReader {
@@ -139,7 +129,7 @@ func (pr *PageReader) Open(ctx context.Context, url string, timeout int, extraTa
 	var title string
 	tasks := []chromedp.Action{
 		network.Enable(),
-		network.SetExtraHTTPHeaders(pr.Headers()),
+		network.SetExtraHTTPHeaders(pr.ChromeDP.HttpHeaders()),
 		chromedp.Navigate(pr.URL),
 	}
 	if len(extraTasks) > 0 {
@@ -148,30 +138,12 @@ func (pr *PageReader) Open(ctx context.Context, url string, timeout int, extraTa
 	tasks = append(tasks, []chromedp.Action{
 		chromedp.Title(&title),
 		chromedp.OuterHTML("html", &html, chromedp.ByQuery),
-		// chromedp.ActionFunc(func(ctx context.Context) error {
-		// 	node, err := dom.GetDocument().Do(ctx)
-		// 	if err != nil {
-		// 		pr.Logger.Printf("err1=====%s", err.Error())
-		// 		return err
-		// 	}
-		//
-		// 	htmlSource, err = dom.GetOuterHTML().WithNodeID(node.NodeID).Do(ctx)
-		// 	if err != nil {
-		// 		pr.Logger.Printf("err2=====%s", err.Error())
-		// 		return err
-		// 	}
-		// 	if htmlSource != "" {
-		// 		htmlSource = strings.TrimSpace(htmlSource)
-		// 	}
-		// 	pr.htmlSource = htmlSource
-		// 	return err
-		// }),
 	}...)
 	err = chromedp.Run(ctx, pr.ChromeDP.RunWithTimeOut(&ctx, timeout, tasks))
 	pr.Error = err
 	pr.SetHtml(html)
 	if err != nil {
-		notify.AddLogf("Open faild, error: %s", err.Error())
+		notify.AddLogf("Open failed, error: %s", err.Error())
 		if errors.Is(err, context.DeadlineExceeded) {
 			timeout += 10
 			pr.Config.RetryTimes += 1
